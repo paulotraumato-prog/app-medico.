@@ -72,3 +72,44 @@ async def register(
     db.add(user)
     db.commit()
     return RedirectResponse(url='/login', status_code=303)
+/register:@app.post('/pagamento/pix')
+async def criar_pagamento_pix(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not mp:
+        raise HTTPException(status_code=500, detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).')
+
+    # Valor fixo de teste (pode vir de um "caso" depois)
+    amount = 50.0
+
+    preference_data = {
+        "items": [
+            {
+                "title": "Renovação de receita / relatório médico",
+                "quantity": 1,
+                "unit_price": amount,
+                "currency_id": "BRL"
+            }
+        ],
+        "payer": {
+            "email": current_user.email
+        },
+        "payment_methods": {
+            "excluded_payment_types": [
+                {"id": "credit_card"},
+                {"id": "debit_card"}
+            ],
+            "default_payment_method_id": "pix"
+        },
+        "back_urls": {
+            "success": "https://app-medico-hfb0.onrender.com/",
+            "failure": "https://app-medico-hfb0.onrender.com/",
+            "pending": "https://app-medico-hfb0.onrender.com/"
+        },
+        "auto_return": "approved"
+    }
+
+    try:
+        preference_response = mp.preference().create(preference_data)
+        init_point = preference_response["response"]["init_point"]
+        return {"checkout_url": init_point}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao criar pagamento PIX: {str(e)}")
